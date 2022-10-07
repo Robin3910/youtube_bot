@@ -12,7 +12,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager as CM
 import requests
-from lxml import etree
+import openpyxl
+
 import re
 
 f = open('infos/config.json', )
@@ -51,6 +52,9 @@ class InstaDM(object):
             "send": "//button[text()='Send']",
             "button_not_now": "//button[text()='Not Now']"
         }
+
+        self.excelData = []
+        self.excelData.append(["link", "sub count", "desc"])
 
         # Selenium config
         options = webdriver.ChromeOptions()
@@ -418,7 +422,6 @@ class InstaDM(object):
 
             channelEles = self.driver.find_elements_by_xpath(self.selectors["channel_link"])
 
-            # todo 多下拉，获取links
             links = {}
             count = 0
             index = 0
@@ -438,21 +441,48 @@ class InstaDM(object):
                         count += 1
                         links[str(url)] = 1
 
-            # todo links满了之后，逐个请求，获取views 和subs，写入excel
+            print("link collect finish")
             for link in links:
+                sleep(1)
                 res = requests.get(link + '/about')
                 if res.status_code == 200:
-                    html = etree.HTML(res.text)
+                    subCount = re.search(r'\"[.\w]+ subscribers\"', res.text, re.M | re.I)
+                    desc = re.search(r'\"description\":\"[\S\s]+?\"', res.text, re.M | re.I)
 
-                    subCount = html.xpath("//yt-formatted-string")
-                    desc = html.xpath("//div")
-                    for div in desc:
-                        if div["attrib"]["id"] == "description-container":
-                            print(div)
-                    print(subCount)
-                    print(desc)
-                    print(res)
+                    if subCount is not None and desc is not None:
+                        self.excelData.append([link, self.transformNum(subCount.group()), desc.group()])
+                        print("fetch info success|link: " + link)
+                    else:
+                        print("fetch info failed, skip|link: " + link)
+
+            self.__save_excel(self.excelData)
+
 
         except Exception as e:
-            logging.error(e)
             print(str(e))
+            logging.error(e)
+
+
+
+    def transformNum(self, numStr):
+        try:
+            num = re.search(r'[.\d]+', numStr)
+            unit = re.search(r'[a-zA-Z]', numStr)
+            if unit.group().lower() == 'k':
+                return float(num.group()) * 1000
+            elif unit.group().lower() == 'm':
+                return float(num.group()) * 1000000
+            elif unit.group().lower() == 'b':
+                return float(num.group()) * 1000000000
+
+        except Exception as e:
+            print(str(e))
+
+
+    def __save_excel(self, data):
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        for row in data:
+            sheet.append(row)
+        workbook.save('userinfo_' + str(time()) + '.xlsx')
+        print("get userinfo task finish, save into excel")
