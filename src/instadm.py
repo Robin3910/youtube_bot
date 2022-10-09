@@ -38,6 +38,7 @@ class InstaDM(object):
             "channel_link": "//a[@id='channel-thumbnail']",
             "sub_count": "//yt-formatted-string[@id='subscriber-count']",
             "desc": "//yt-formatted-string[@id='description']",
+            "noMore": "//*[text()='No more results'] | //*[text()='无更多结果']",
             "accept_cookies": "//button[text()='Accept']",
             "home_to_login_button": "//button[text()='Log In']",
             "username_field": "username",
@@ -441,9 +442,13 @@ class InstaDM(object):
                         count += 1
                         links[str(url)] = 1
 
+                if self.is_element_present('xpath', self.selectors["noMore"]):
+                    print("arrive page bottom, no more result")
+                    break
+
             print("link collect finish")
             for link in links:
-                sleep(1)
+                self.__random_sleep__(2, 5)
                 res = requests.get(link + '/about')
                 if res.status_code == 200:
                     subCount = re.search(r'\"[.\w]+ subscribers\"', res.text, re.M | re.I)
@@ -460,6 +465,7 @@ class InstaDM(object):
 
         except Exception as e:
             print(str(e))
+            self.__save_excel(self.excelData)
             logging.error(e)
 
 
@@ -474,6 +480,8 @@ class InstaDM(object):
                 return float(num.group()) * 1000000
             elif unit.group().lower() == 'b':
                 return float(num.group()) * 1000000000
+            else:
+                return int(num.group())
 
         except Exception as e:
             print(str(e))
