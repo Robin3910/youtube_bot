@@ -55,7 +55,7 @@ class InstaDM(object):
         }
 
         self.excelData = []
-        self.excelData.append(["link", "sub count", "desc"])
+        self.excelData.append(["title", "fans num", "link", "country", "desc"])
 
         # Selenium config
         options = webdriver.ChromeOptions()
@@ -453,9 +453,20 @@ class InstaDM(object):
                 if res.status_code == 200:
                     subCount = re.search(r'\"[.\w]+ subscribers\"', res.text, re.M | re.I)
                     desc = re.search(r'\"description\":\"[\S\s]+?\"', res.text, re.M | re.I)
+                    titleRes = re.search(r'\"title\":{\"simpleText":\"[\S\s]+?\"},"avatar"', res.text, re.M | re.I)
+                    locationRes = re.search(r'\"country\":{\"simpleText":\"[\S\s]+?\"', res.text, re.M | re.I)
+                    location = " "
+                    title = " "
+                    if titleRes is not None:
+                        titleResArr = titleRes.group().split('"')
+                        title = titleResArr[len(titleResArr) - 4]
+
+                    if locationRes is not None:
+                        location = locationRes.group().split('"')[5]
 
                     if subCount is not None and desc is not None:
-                        self.excelData.append([link, self.transformNum(subCount.group()), desc.group()])
+                        self.excelData.append(
+                            [title, self.transformNum(subCount.group()), link, location, desc.group()])
                         print("fetch info success|link: " + link)
                     else:
                         print("fetch info failed, skip|link: " + link)
@@ -467,8 +478,6 @@ class InstaDM(object):
             print(str(e))
             self.__save_excel(self.excelData)
             logging.error(e)
-
-
 
     def transformNum(self, numStr):
         try:
@@ -485,7 +494,6 @@ class InstaDM(object):
 
         except Exception as e:
             print(str(e))
-
 
     def __save_excel(self, data):
         workbook = openpyxl.Workbook()
