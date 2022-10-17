@@ -467,7 +467,7 @@ class InstaDM(object):
                     if subCount is not None and desc is not None:
                         self.excelData.append(
                             [title, self.transformNum(subCount.group()), link, location, desc.group()])
-                        print("fetch info success|link: " + link)
+                        print("fetch info success|num: " + str(len(self.excelData)) + "|link: " + link)
                     else:
                         print("fetch info failed, skip|link: " + link)
 
