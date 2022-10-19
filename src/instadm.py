@@ -56,6 +56,7 @@ class InstaDM(object):
 
         self.excelData = []
         self.excelData.append(["title", "fans num", "link", "country", "desc"])
+        self.is_no_more_result = False
 
         # Selenium config
         options = webdriver.ChromeOptions()
@@ -443,12 +444,13 @@ class InstaDM(object):
                         links[str(url)] = 1
 
                 if self.is_element_present('xpath', self.selectors["noMore"]):
+                    self.is_no_more_result = True
                     print("arrive page bottom, no more result")
                     break
 
             print("link collect finish")
             for link in links:
-                self.__random_sleep__(2, 5)
+                self.__random_sleep__(10, 40)
                 res = requests.get(link + '/about')
                 if res.status_code == 200:
                     subCount = re.search(r'\"[.\w]+ subscribers\"', res.text, re.M | re.I)
@@ -472,6 +474,9 @@ class InstaDM(object):
                         print("fetch info failed, skip|link: " + link)
 
             self.__save_excel(self.excelData)
+            if self.is_no_more_result:
+                print("no more result stop|fetch data nums: " + str(len(self.excelData)) + "|target nums: " + str(
+                    config["nums"]))
 
 
         except Exception as e:
@@ -501,4 +506,4 @@ class InstaDM(object):
         for row in data:
             sheet.append(row)
         workbook.save('userinfo_' + str(time()) + '.xlsx')
-        print("get userinfo task finish, save into excel")
+        print("save into excel finished")
