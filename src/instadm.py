@@ -38,6 +38,8 @@ class InstaDM(object):
             "channel_link": "//a[@id='channel-thumbnail']",
             "sub_count": "//yt-formatted-string[@id='subscriber-count']",
             "desc": "//yt-formatted-string[@id='description']",
+            "location": "//*[@id='details-container']/table/tbody/tr[2]/td[2]/yt-formatted-string",
+            "title": "//*[@id='channel-header-container']/div/div/*[@id='channel-name']/div/div/*[@id='text']",
             "noMore": "//*[text()='No more results'] | //*[text()='无更多结果']",
             "accept_cookies": "//button[text()='Accept']",
             "home_to_login_button": "//button[text()='Log In']",
@@ -57,6 +59,7 @@ class InstaDM(object):
         self.excelData = []
         self.excelData.append(["title", "fans num", "link", "country", "desc"])
         self.is_no_more_result = False
+        self.sendInterval = config["send_interval"]
 
         # Selenium config
         options = webdriver.ChromeOptions()
@@ -72,33 +75,7 @@ class InstaDM(object):
         self.driver = webdriver.Chrome(
             executable_path=CM().install(), options=options)
         self.driver.set_window_position(0, 0)
-        self.driver.set_window_size(2000, 1136)
-
-        # Instapy init DB
-        self.instapy_workspace = instapy_workspace
-        self.conn = None
-        self.cursor = None
-        if self.instapy_workspace is not None:
-            self.conn = sqlite3.connect(
-                self.instapy_workspace + "InstaPy/db/instapy.db")
-            self.cursor = self.conn.cursor()
-
-            cursor = self.conn.execute("""
-                SELECT count(*)
-                FROM sqlite_master
-                WHERE type='table'
-                AND name='message';
-            """)
-            count = cursor.fetchone()[0]
-
-            if count == 0:
-                self.conn.execute("""
-                    CREATE TABLE "message" (
-                        "username"    TEXT NOT NULL UNIQUE,
-                        "message"    TEXT DEFAULT NULL,
-                        "sent_message_at"    TIMESTAMP
-                    );
-                """)
+        self.driver.maximize_window()
 
         self.mainLoop()
 
@@ -448,30 +425,43 @@ class InstaDM(object):
                     print("arrive page bottom, no more result")
                     break
 
-            print("link collect finish")
+            print("link collect finish, start to fetch")
             for link in links:
-                self.__random_sleep__(10, 40)
-                res = requests.get(link + '/about')
-                if res.status_code == 200:
-                    subCount = re.search(r'\"[.\w]+ subscribers\"', res.text, re.M | re.I)
-                    desc = re.search(r'\"description\":\"[\S\s]+?\"', res.text, re.M | re.I)
-                    titleRes = re.search(r'\"title\":{\"simpleText":\"[\S\s]+?\"},"avatar"', res.text, re.M | re.I)
-                    locationRes = re.search(r'\"country\":{\"simpleText":\"[\S\s]+?\"', res.text, re.M | re.I)
-                    location = " "
-                    title = " "
-                    if titleRes is not None:
-                        titleResArr = titleRes.group().split('"')
-                        title = titleResArr[len(titleResArr) - 4]
+                self.__random_sleep__(self.sendInterval, self.sendInterval)
 
-                    if locationRes is not None:
-                        location = locationRes.group().split('"')[5]
+                detailLink = f'{link}/about'
 
-                    if subCount is not None and desc is not None:
-                        self.excelData.append(
-                            [title, self.transformNum(subCount.group()), link, location, desc.group()])
-                        print("fetch info success|num: " + str(len(self.excelData)) + "|link: " + link)
-                    else:
-                        print("fetch info failed, skip|link: " + link)
+                desc = ""
+                subCount = ""
+                title = ""
+                location = ""
+                # open new tab for fetch info
+                newWindow = f'window.open("{detailLink}")'
+                self.driver.execute_script(newWindow)
+                handles = self.driver.window_handles
+                self.driver.switch_to.window(handles[len(handles) - 1])
+                self.__random_sleep__(5, 10)
+                try:
+                    descNode = self.__get_element__(self.selectors["desc"], "xpath")
+                    if descNode is not None:
+                        desc = descNode.text
+                    subCountNode = self.__get_element__(self.selectors["sub_count"], "xpath")
+                    if subCountNode is not None:
+                        subCount = self.transformNum(subCountNode.text)
+                    locationNode = self.__get_element__(self.selectors["location"], "xpath")
+                    if locationNode is not None:
+                        location = locationNode.text
+                    titleNode = self.__get_element__(self.selectors["title"], "xpath")
+                    if titleNode is not None:
+                        title = titleNode.text
+                    self.excelData.append(
+                        [title, subCount, detailLink, location, desc])
+                    self.driver.close()
+                    self.driver.switch_to.window(handles[0])
+                    print(f'fetch success, current process: {len(self.excelData) - 1}|title: {title}')
+
+                except Exception as e:
+                    logging.error(e)
 
             self.__save_excel(self.excelData)
             if self.is_no_more_result:
