@@ -39,8 +39,9 @@ class InstaDM(object):
             "sub_count": "//yt-formatted-string[@id='subscriber-count']",
             "desc": "//yt-formatted-string[@id='description']",
             "location": "//*[@id='details-container']/table/tbody/tr[2]/td[2]/yt-formatted-string",
-            "title": "//*[@id='channel-header-container']/div/div/*[@id='channel-name']/div/div/*[@id='text']",
+            "title": "//*[@id='text']",
             "noMore": "//*[text()='No more results'] | //*[text()='无更多结果']",
+            "extLink": "//*[@id='link-list-container']/a",
             "accept_cookies": "//button[text()='Accept']",
             "home_to_login_button": "//button[text()='Log In']",
             "username_field": "username",
@@ -57,7 +58,7 @@ class InstaDM(object):
         }
 
         self.excelData = []
-        self.excelData.append(["title", "fans num", "link", "country", "desc"])
+        self.excelData.append(["title", "fans num", "link", "country", "desc", "extra_link"])
         self.is_no_more_result = False
         self.sendInterval = config["send_interval"]
 
@@ -454,8 +455,13 @@ class InstaDM(object):
                     titleNode = self.__get_element__(self.selectors["title"], "xpath")
                     if titleNode is not None:
                         title = titleNode.text
+                    extraLinks = self.driver.find_elements_by_xpath(self.selectors["extLink"])
+                    extraLinksStr = ""
+                    if extraLinks is not None:
+                        for extraLink in extraLinks:
+                            extraLinksStr += f'{extraLink.text}: {extraLink.get_attribute("href")}\n'
                     self.excelData.append(
-                        [title, subCount, detailLink, location, desc])
+                        [title, subCount, link, location, desc, extraLinksStr])
                     self.driver.close()
                     self.driver.switch_to.window(handles[0])
                     print(f'fetch success, current process: {len(self.excelData) - 1}|title: {title}')
