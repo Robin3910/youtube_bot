@@ -2,5 +2,6 @@
   "search_word": "playshifu",
   "recent_time": "",
   "nums": 30,
-  "send_interval": 10
+  "fetch_interval": 10,
+  "min_fans_num": 800
 }

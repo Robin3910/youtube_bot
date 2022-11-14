@@ -13,6 +13,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager as CM
 import requests
 import openpyxl
+import _thread
 
 import re
 
@@ -60,7 +61,8 @@ class InstaDM(object):
         self.excelData = []
         self.excelData.append(["title", "fans num", "link", "country", "desc", "extra_link"])
         self.is_no_more_result = False
-        self.sendInterval = config["send_interval"]
+        self.fetchInterval = config["fetch_interval"]
+        self.minFans = config["min_fans_num"]
 
         # Selenium config
         options = webdriver.ChromeOptions()
@@ -77,6 +79,8 @@ class InstaDM(object):
             executable_path=CM().install(), options=options)
         self.driver.set_window_position(0, 0)
         self.driver.maximize_window()
+
+        _thread.start_new_thread(self.__waiting_for_stop_bot, ())
 
         self.mainLoop()
 
@@ -428,7 +432,7 @@ class InstaDM(object):
 
             print("link collect finish, start to fetch")
             for link in links:
-                self.__random_sleep__(self.sendInterval, self.sendInterval)
+                self.__random_sleep__(self.fetchInterval, self.fetchInterval)
 
                 detailLink = f'{link}/about'
 
@@ -443,12 +447,18 @@ class InstaDM(object):
                 self.driver.switch_to.window(handles[len(handles) - 1])
                 self.__random_sleep__(5, 10)
                 try:
-                    descNode = self.__get_element__(self.selectors["desc"], "xpath")
-                    if descNode is not None:
-                        desc = descNode.text
                     subCountNode = self.__get_element__(self.selectors["sub_count"], "xpath")
                     if subCountNode is not None:
                         subCount = self.transformNum(subCountNode.text)
+                        if subCount < self.minFans:
+                            self.driver.close()
+                            self.driver.switch_to.window(handles[0])
+                            continue
+
+                    descNode = self.__get_element__(self.selectors["desc"], "xpath")
+                    if descNode is not None:
+                        desc = descNode.text
+
                     locationNode = self.__get_element__(self.selectors["location"], "xpath")
                     if locationNode is not None:
                         location = locationNode.text
@@ -484,12 +494,15 @@ class InstaDM(object):
         try:
             num = re.search(r'[.\d]+', numStr)
             unit = re.search(r'[a-zA-Z]', numStr)
-            if unit.group().lower() == 'k':
-                return float(num.group()) * 1000
-            elif unit.group().lower() == 'm':
-                return float(num.group()) * 1000000
-            elif unit.group().lower() == 'b':
-                return float(num.group()) * 1000000000
+            if unit is not None:
+                if unit.group().lower() == 'k':
+                    return float(num.group()) * 1000
+                elif unit.group().lower() == 'm':
+                    return float(num.group()) * 1000000
+                elif unit.group().lower() == 'b':
+                    return float(num.group()) * 1000000000
+                else:
+                    return int(num.group())
             else:
                 return int(num.group())
 
@@ -503,3 +516,11 @@ class InstaDM(object):
             sheet.append(row)
         workbook.save('userinfo_' + str(time()) + '.xlsx')
         print("save into excel finished")
+
+
+    def __waiting_for_stop_bot(self):
+        cmd = input()
+        if cmd == "stop":
+            self.__save_excel(self.excelData)
+            print("stop the bot!")
+            exit(0)
